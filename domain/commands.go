@@ -7,25 +7,40 @@ type (
 		Execute() error
 	}
 
-	ScaleCommand struct {
-		Provider Provider
+	CMDError struct {
+		Code    int
+		Message string
 	}
 
-	ScaleCommands []ScaleCommand
+	BaseCommand struct {
+		Provider Provider
+		State    CommandState
+		Error    *CMDError
+	}
+
+	BaseCommands []BaseCommand
 
 	Launch struct {
-		ScaleCommand
+		BaseCommand
 	}
 
 	Terminate struct {
-		ScaleCommand
+		BaseCommand
+
+		NodeID ID
 	}
 )
 
 func (lc *Launch) Execute() error {
+
+	// API call
+
 	return nil
 }
 
 func (lc *Terminate) Execute() error {
+
+	// API call
+
 	return nil
 }

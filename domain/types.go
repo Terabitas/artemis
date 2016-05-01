@@ -8,14 +8,19 @@ const (
 	Vultr        = "vultr"
 
 	NodeStateNew        = NodeState(0)
-	NodeStateUnhealthy  = NodeState(1)
-	NodeStateActive     = NodeState(2)
+	NodeStateActive     = NodeState(1)
+	NodeStateUnhealthy  = NodeState(2)
 	NodeStateTerminated = NodeState(4)
 	NodeStateDeleted    = NodeState(8)
 
 	ASGStateNew     = State(0)
 	ASGStateActive  = State(1)
 	ASGStateDeleted = State(2)
+
+	CMDStateNew        = CommandState(0)
+	CMDStateInProgress = CommandState(1)
+	CMDStateDone       = CommandState(2)
+	CMDStateFailed     = CommandState(4)
 
 	HealthMetricType MetricType = "health"
 )
@@ -34,7 +39,8 @@ type (
 
 	Order int
 
-	NodeState int
+	NodeState    int
+	CommandState int
 
 	NetworkInterface struct {
 		ID ID

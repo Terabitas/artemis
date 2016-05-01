@@ -1,23 +1,28 @@
 package domain
 
+import "github.com/juju/errors"
+
 type (
+	// AutoScalingGroup ...
 	AutoScalingGroup struct {
 		ID       ID
 		State    State
 		Nodes    NodeSet
-		Policies Policies
+		Policies PolicySet
 		Commands CommandSet
 	}
 )
 
+// NewAutoScalingGroup constructor
 func NewAutoScalingGroup(id ID) *AutoScalingGroup {
 	return &AutoScalingGroup{
-		ID: id,
+		ID:    id,
+		State: ASGStateNew,
 	}
 }
 
-func (asg *AutoScalingGroup) Create(nodes NodeSet, policies Policies) error {
-
+// Setup ...
+func (asg *AutoScalingGroup) Setup(nodes NodeSet, policies PolicySet) error {
 	asg.State = ASGStateActive
 	asg.Nodes = nodes
 	asg.Policies = policies
@@ -26,29 +31,44 @@ func (asg *AutoScalingGroup) Create(nodes NodeSet, policies Policies) error {
 	return nil
 }
 
-func (asg *AutoScalingGroup) AddMetrics(node ID, metrics MetricSeries) error {
+// ChangePolicy changes the policy, currently it overrides it and all state is lost
+func (asg *AutoScalingGroup) ChangePolicy(policy Policy) error {
+	err := asg.Policies.Replace(policy)
 
+	if err != nil {
+		return errors.Trace(err)
+	}
 	return nil
 }
 
-func (asg *AutoScalingGroup) Execute() error {
+// AddMetrics ...
+func (asg *AutoScalingGroup) AddMetrics(node ID, metrics MetricSeries) error {
 
+	if _, ok := asg.Nodes[node]; !ok {
+		errors.Errorf("Node by ID %s was not found", node)
+	}
+
+	asg.Nodes[node].AddMetrics(metrics)
+	return nil
+}
+
+// Evaluate goes through the policies and generates commands that needs
+// to be executed
+func (asg *AutoScalingGroup) Evaluate() error {
 	asg.State = ASGStateDeleted
 
 	for _, policy := range asg.Policies {
-		policy.Evaluate(asg)
-	}
-
-	for _, cmd := range asg.Commands {
-		cmd.Execute()
+		err := policy.Evaluate(asg)
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
 
 	return nil
 }
 
+// Remove ...
 func (asg *AutoScalingGroup) Remove() error {
-
 	asg.State = ASGStateDeleted
-
 	return nil
 }

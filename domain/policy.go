@@ -7,24 +7,39 @@ import (
 )
 
 type (
-	Policies []Policy
+	// Policies list
+	PolicySet map[ID]Policy
 
+	// Policy type
 	Policy interface {
 		// Evaluate takes in AutoScalingGroup and calculates what commands should be added or removed
 		Evaluate(*AutoScalingGroup) error
+		GetID() ID
 	}
 
 	// DesiredNodeAmountPerProviderPolicy evaluates current state and creates Commands per provider
 	DesiredHealthyNodeAmountPerProviderPolicy struct {
+		ID                         ID
 		Min, Max, Desired, Current int
 		HealthyThreshold           float64
 		CheckInterval              time.Duration
-		Provider                   string
+		Provider                   Provider
+		ConsecutiveChecks          int
+		ConsecutiveChecksNum       map[ID]int
 	}
 )
 
+// NewPolicySet constructor
+func NewPolicySet(plc ...Policy) PolicySet {
+	policies := PolicySet{}
+	for _, p := range plc {
+		policies[p.GetID()] = p
+	}
+	return policies
+}
+
 // NewDesiredNodeAmountPerProviderPolicy constructor
-func NewDesiredNodeAmountPerProviderPolicy(min, max, desired int, healthyThreshold float64, checkInterval time.Duration, providerID string) (Policy, error) {
+func NewDesiredNodeAmountPerProviderPolicy(id ID, min, max, desired, consecutiveChecks int, healthyThreshold float64, checkInterval time.Duration, provider Provider) (Policy, error) {
 
 	if desired > max {
 		return nil, errors.Errorf("Desired %d can not be more than max %d", desired, max)
@@ -38,36 +53,95 @@ func NewDesiredNodeAmountPerProviderPolicy(min, max, desired int, healthyThresho
 		return nil, errors.Errorf("Min %d can not be more than max %d", min, max)
 	}
 
+	if consecutiveChecks <= 0 {
+		return nil, errors.Errorf("ConsecutiveChecks %d can not be less or equal to 0", consecutiveChecks)
+	}
+
 	return &DesiredHealthyNodeAmountPerProviderPolicy{
-		Min:              min,
-		Max:              max,
-		Desired:          desired,
-		Current:          0,
-		HealthyThreshold: healthyThreshold,
-		CheckInterval:    checkInterval,
-		Provider:         providerID,
+		ID:                   id,
+		Min:                  min,
+		Max:                  max,
+		Desired:              desired,
+		Current:              0,
+		ConsecutiveChecksNum: map[ID]int{},
+		HealthyThreshold:     healthyThreshold,
+		CheckInterval:        checkInterval,
+		Provider:             provider,
+		ConsecutiveChecks:    consecutiveChecks,
 	}, nil
 }
 
+func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) GetID() ID {
+	return dsp.ID
+}
+
+// Evaluate what commands should be executed by given ASG
 func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) Evaluate(asg *AutoScalingGroup) error {
 
+	dsp.Current = 0
 	dsp.countCurrent(asg.Nodes)
 
 	if dsp.Current == dsp.Desired {
 		return nil
 	}
 
+	commandOrder := len(asg.Commands)
 	if dsp.Current < dsp.Desired {
 		amt := dsp.Desired - dsp.Current
-		for i := 0; i < amt; i++ {
-			asg.Commands[Order(i)] = &Launch{}
+
+		// First terminate instances that has failed threshold check
+		// then launch new one
+		handled := 0
+		for nodeID, v := range dsp.ConsecutiveChecksNum {
+			if v == dsp.ConsecutiveChecks {
+				commandOrder++
+				asg.Commands[Order(commandOrder)] = &Terminate{
+					BaseCommand: BaseCommand{
+						Provider: dsp.Provider,
+					},
+					NodeID: nodeID,
+				}
+
+				commandOrder++
+				asg.Commands[Order(commandOrder)] = &Launch{
+					BaseCommand: BaseCommand{
+						Provider: dsp.Provider,
+					},
+				}
+
+				handled++
+			}
+		}
+
+		if amt > handled {
+			for i := 0; i < amt-handled; i++ {
+				commandOrder++
+				asg.Commands[Order(commandOrder)] = &Launch{
+					BaseCommand: BaseCommand{
+						Provider: dsp.Provider,
+					},
+				}
+			}
 		}
 	}
 
+	// If desired has been minimized, terminate the difference
 	if dsp.Current > dsp.Desired {
 		amt := dsp.Current - dsp.Desired
-		for i := 0; i < amt; i++ {
-			asg.Commands[Order(i)] = &Terminate{}
+
+		handled := 0
+		for nodeID := range asg.Nodes {
+			if handled == amt {
+				break
+			}
+			commandOrder++
+			asg.Commands[Order(commandOrder)] = &Terminate{
+				BaseCommand: BaseCommand{
+					Provider: dsp.Provider,
+				},
+				NodeID: nodeID,
+			}
+			handled++
 		}
 	}
 
@@ -76,17 +150,42 @@ func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) Evaluate(asg *AutoScalingG
 
 func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) countCurrent(nodes NodeSet) error {
 	for _, node := range nodes {
-		if node.Provider.ID != dsp.Provider {
+		if _, ok := dsp.ConsecutiveChecksNum[node.ID]; !ok {
+			dsp.ConsecutiveChecksNum[node.ID] = 0
+		}
+
+		if node.Provider.ID != dsp.Provider.ID {
 			continue
 		}
+
 		now := time.Now()
 		before := now.Add(dsp.CheckInterval)
 		val := node.CalculateMetricValue(HealthMetricType, before, now)
 
 		if val >= dsp.HealthyThreshold {
-			dsp.Current = dsp.Current + 1
+			node.ChangeState(NodeStateActive)
+			dsp.Current++
+			// reset
+			dsp.ConsecutiveChecksNum[node.ID] = 0
+		} else {
+			dsp.ConsecutiveChecksNum[node.ID]++
+			node.ChangeState(NodeStateUnhealthy)
+			if dsp.ConsecutiveChecksNum[node.ID] < dsp.ConsecutiveChecks {
+				dsp.Current++
+				node.ChangeState(NodeStateActive)
+			}
 		}
 	}
 
+	return nil
+}
+
+// Replace overrides policy, state is lost
+func (p PolicySet) Replace(policy Policy) error {
+	if _, ok := p[policy.GetID()]; !ok {
+		return errors.Errorf("Policy by id %s was not found", policy.GetID())
+	}
+
+	p[policy.GetID()] = policy
 	return nil
 }

@@ -13,7 +13,7 @@ var _ = Suite(&PolicySuite{})
 
 func prepareAsg(fail int) *AutoScalingGroup {
 	node := NewNode()
-	node.Create(
+	node.Setup(
 		ID("node1"),
 		Provider{
 			ID:     DigitalOcean,
@@ -51,15 +51,18 @@ func prepareAsg(fail int) *AutoScalingGroup {
 	}
 
 	asg := NewAutoScalingGroup(ID("test"))
-	asg.Create(nodeSet, Policies{})
+	asg.Setup(nodeSet, PolicySet{})
 
 	return asg
 }
 
-func (s *PolicySuite) TestIfDesiredNodeAmountPerProviderPolicyEvaluatesThatNoMoreNodeShouldBeLaunched(c *C) {
+func (s *PolicySuite) TestIfDesiredNodeAmountPerProviderPolicyEvaluatesCorrectly(c *C) {
 	asg := prepareAsg(0)
 
-	plc, err := NewDesiredNodeAmountPerProviderPolicy(1, 1, 1, 0.9, time.Duration(-60*time.Second), DigitalOcean)
+	plc, err := NewDesiredNodeAmountPerProviderPolicy(ID("policy-1"), 1, 1, 1, 3, 0.9, time.Duration(-60*time.Second), Provider{
+		ID:     DigitalOcean,
+		APIKey: "some-key",
+	})
 	c.Assert(err, IsNil)
 	plc.Evaluate(asg)
 
@@ -68,19 +71,42 @@ func (s *PolicySuite) TestIfDesiredNodeAmountPerProviderPolicyEvaluatesThatNoMor
 	// 55 of 60 - should not fail
 	asg = prepareAsg(5)
 
-	plc, err = NewDesiredNodeAmountPerProviderPolicy(1, 1, 1, 0.9, time.Duration(-60*time.Second), DigitalOcean)
+	plc, err = NewDesiredNodeAmountPerProviderPolicy(ID("policy-1"), 1, 1, 1, 3, 0.9, time.Duration(-60*time.Second), Provider{
+		ID:     DigitalOcean,
+		APIKey: "some-key",
+	})
 	c.Assert(err, IsNil)
 	plc.Evaluate(asg)
 
 	c.Assert(len(asg.Commands), Equals, 0)
 
-	// 50 of 60 should be less than 0.9
+	// 50 of 60 should be less than 0.9 and because we allow only one check to fail it should launch new instance
+	// terminate old
 	asg = prepareAsg(10)
 
-	plc, err = NewDesiredNodeAmountPerProviderPolicy(1, 1, 1, 0.9, time.Duration(-60*time.Second), DigitalOcean)
+	plc, err = NewDesiredNodeAmountPerProviderPolicy(ID("policy-1"), 1, 1, 1, 1, 0.9, time.Duration(-60*time.Second), Provider{
+		ID:     DigitalOcean,
+		APIKey: "some-key",
+	})
 	c.Assert(err, IsNil)
 	plc.Evaluate(asg)
 
-	c.Assert(len(asg.Commands), Equals, 1)
-
+	c.Assert(len(asg.Commands), Equals, 2)
+	c.Assert(asg.Commands[Order(1)], DeepEquals, &Terminate{
+		BaseCommand: BaseCommand{
+			Provider: Provider{
+				ID:     DigitalOcean,
+				APIKey: "some-key",
+			},
+		},
+		NodeID: ID("node1"),
+	})
+	c.Assert(asg.Commands[Order(2)], DeepEquals, &Launch{
+		BaseCommand: BaseCommand{
+			Provider: Provider{
+				ID:     DigitalOcean,
+				APIKey: "some-key",
+			},
+		},
+	})
 }
