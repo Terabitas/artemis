@@ -13,9 +13,10 @@ const (
 	NodeStateTerminated = NodeState(4)
 	NodeStateDeleted    = NodeState(8)
 
-	ASGStateNew     = State(0)
-	ASGStateActive  = State(1)
-	ASGStateDeleted = State(2)
+	ASGStateNew       = State(0)
+	ASGStateActive    = State(1)
+	ASGStateExecuting = State(2)
+	ASGStateDeleted   = State(4)
 
 	CMDStateNew        = CommandState(0)
 	CMDStateInProgress = CommandState(1)

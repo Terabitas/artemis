@@ -39,7 +39,11 @@ func (asg *AutoScalingGroup) Setup(nodes NodeSet, policies PolicySet) error {
 
 // ChangePolicy changes the policy, currently it overrides it and all state is lost
 func (asg *AutoScalingGroup) ChangePolicy(policy Policy) error {
-	err := asg.Policies.Replace(policy)
+	if asg.State == ASGStateNew {
+		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
+	}
+
+	err := asg.Policies.Update(policy)
 
 	if err != nil {
 		return errors.Trace(err)
@@ -49,6 +53,9 @@ func (asg *AutoScalingGroup) ChangePolicy(policy Policy) error {
 
 // AddMetrics ...
 func (asg *AutoScalingGroup) AddMetrics(node ID, metrics MetricSeries) error {
+	if asg.State == ASGStateNew {
+		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
+	}
 
 	if _, ok := asg.Nodes[node]; !ok {
 		errors.Errorf("Node by ID %s was not found", node)
@@ -60,6 +67,9 @@ func (asg *AutoScalingGroup) AddMetrics(node ID, metrics MetricSeries) error {
 
 // RemoveNode ...
 func (asg *AutoScalingGroup) RemoveNode(node ID) error {
+	if asg.State == ASGStateNew {
+		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
+	}
 
 	if _, ok := asg.Nodes[node]; !ok {
 		errors.Errorf("Node by ID %s was not found", node)
@@ -71,6 +81,9 @@ func (asg *AutoScalingGroup) RemoveNode(node ID) error {
 
 // AddNode ...
 func (asg *AutoScalingGroup) AddNode(node *Node) error {
+	if asg.State == ASGStateNew {
+		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
+	}
 
 	if _, ok := asg.Nodes[node.ID]; !ok {
 		errors.Errorf("Node with ID %s already exists", node.ID)
@@ -83,7 +96,13 @@ func (asg *AutoScalingGroup) AddNode(node *Node) error {
 // Evaluate goes through the policies and generates commands that needs
 // to be executed
 func (asg *AutoScalingGroup) Evaluate() error {
-	asg.State = ASGStateDeleted
+	if asg.State == ASGStateExecuting {
+		return errors.Errorf("ASG is in ASGStateExecuting state, try later")
+	}
+
+	if asg.State == ASGStateNew {
+		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
+	}
 
 	for _, policy := range asg.Policies {
 		err := policy.Evaluate(asg)
@@ -92,6 +111,16 @@ func (asg *AutoScalingGroup) Evaluate() error {
 		}
 	}
 
+	return nil
+}
+
+// Execute required commands created by policies
+func (asg *AutoScalingGroup) Execute() error {
+	if asg.State == ASGStateNew {
+		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
+	}
+
+	asg.State = ASGStateExecuting
 	var keys []int
 	for k := range asg.Commands {
 		keys = append(keys, int(k))
@@ -110,17 +139,24 @@ func (asg *AutoScalingGroup) Evaluate() error {
 		if err != nil {
 			errs = append(errs, err.Error())
 		}
+
+		delete(asg.Commands, Order(k))
 	}
 
 	if len(errs) > 0 {
 		return errors.Errorf("Execution finished with these errors - %s", strings.Join(errs, ":"))
 	}
 
+	asg.State = ASGStateActive
 	return nil
 }
 
 // Remove ...
 func (asg *AutoScalingGroup) Remove() error {
+	if asg.State == ASGStateNew {
+		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
+	}
+
 	asg.State = ASGStateDeleted
 	return nil
 }

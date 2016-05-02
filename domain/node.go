@@ -30,6 +30,14 @@ func NewNodeSet(nodes ...*Node) NodeSet {
 	return ns
 }
 
+// GetByID return node if found
+func (ns NodeSet) GetByID(id ID) *Node {
+	if v, ok := ns[id]; ok {
+		return v
+	}
+	return nil
+}
+
 // NewNode constructor
 func NewNode() *Node {
 	return &Node{
@@ -51,7 +59,7 @@ func (n *Node) Setup(id ID, provider Provider, prIface, puIface NetworkInterface
 }
 
 // ChangeProvider ...
-func (n *Node) ChangeProvider(provider Provider) error {
+func (n *Node) UpdateProvider(provider Provider) error {
 	n.Provider = provider
 	return nil
 }

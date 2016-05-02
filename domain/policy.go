@@ -14,6 +14,7 @@ type (
 	Policy interface {
 		// Evaluate takes in AutoScalingGroup and calculates what commands should be added or removed
 		Evaluate(*AutoScalingGroup) error
+		Update(Policy) error
 		GetID() ID
 	}
 
@@ -75,6 +76,25 @@ func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) GetID() ID {
 	return dsp.ID
 }
 
+// Update will reset checks state
+func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) Update(plc Policy) error {
+	v, ok := plc.(*DesiredHealthyNodeAmountPerProviderPolicy)
+	if !ok {
+		return errors.Errorf("Given policy is not *DesiredHealthyNodeAmountPerProviderPolicy")
+	}
+
+	dsp.Desired = v.Desired
+	dsp.Max = v.Max
+	dsp.Min = v.Min
+	dsp.HealthyThreshold = v.HealthyThreshold
+	dsp.CheckInterval = v.CheckInterval
+	dsp.Provider = v.Provider
+	dsp.ConsecutiveChecks = v.ConsecutiveChecks
+	dsp.ConsecutiveChecksNum = map[ID]int{}
+
+	return nil
+}
+
 // Evaluate what commands should be executed by given ASG
 func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) Evaluate(asg *AutoScalingGroup) error {
 
@@ -89,30 +109,25 @@ func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) Evaluate(asg *AutoScalingG
 	if dsp.Current < dsp.Desired {
 		amt := dsp.Desired - dsp.Current
 
-		// First terminate instances that has failed threshold check
-		// then launch new one
+		// Relaunch nodes
 		handled := 0
 		for nodeID, v := range dsp.ConsecutiveChecksNum {
+			// Relaunch those nodes which has failed checks
 			if v == dsp.ConsecutiveChecks {
 				commandOrder++
-				asg.Commands[Order(commandOrder)] = &Terminate{
+				asg.Commands[Order(commandOrder)] = &Relaunch{
 					BaseCommand: BaseCommand{
 						Provider: dsp.Provider,
 					},
 					NodeID: nodeID,
 				}
 
-				commandOrder++
-				asg.Commands[Order(commandOrder)] = &Launch{
-					BaseCommand: BaseCommand{
-						Provider: dsp.Provider,
-					},
-				}
-
 				handled++
 			}
 		}
 
+		// Now of desired has been increased so even though all nodes
+		// are healthy we need to launch new ones
 		if amt > handled {
 			for i := 0; i < amt-handled; i++ {
 				commandOrder++
@@ -180,12 +195,11 @@ func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) countCurrent(nodes NodeSet
 	return nil
 }
 
-// Replace overrides policy, state is lost
-func (p PolicySet) Replace(policy Policy) error {
+// Update policy
+func (p PolicySet) Update(policy Policy) error {
 	if _, ok := p[policy.GetID()]; !ok {
 		return errors.Errorf("Policy by id %s was not found", policy.GetID())
 	}
 
-	p[policy.GetID()] = policy
-	return nil
+	return p[policy.GetID()].Update(policy)
 }

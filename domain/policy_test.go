@@ -91,8 +91,8 @@ func (s *PolicySuite) TestIfDesiredNodeAmountPerProviderPolicyEvaluatesCorrectly
 	c.Assert(err, IsNil)
 	plc.Evaluate(asg)
 
-	c.Assert(len(asg.Commands), Equals, 2)
-	c.Assert(asg.Commands[Order(1)], DeepEquals, &Terminate{
+	c.Assert(len(asg.Commands), Equals, 1)
+	c.Assert(asg.Commands[Order(1)], DeepEquals, &Relaunch{
 		BaseCommand: BaseCommand{
 			Provider: Provider{
 				ID:     DigitalOcean,
@@ -100,13 +100,5 @@ func (s *PolicySuite) TestIfDesiredNodeAmountPerProviderPolicyEvaluatesCorrectly
 			},
 		},
 		NodeID: ID("node1"),
-	})
-	c.Assert(asg.Commands[Order(2)], DeepEquals, &Launch{
-		BaseCommand: BaseCommand{
-			Provider: Provider{
-				ID:     DigitalOcean,
-				APIKey: "some-key",
-			},
-		},
 	})
 }

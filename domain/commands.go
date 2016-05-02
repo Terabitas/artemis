@@ -47,6 +47,26 @@ func (lc *Launch) Execute(asg *AutoScalingGroup) error {
 
 	// API call
 
+	node := NewNode()
+	node.Setup(
+		ID("new-node-instance-id-from-API"),
+		Provider{
+			ID:     DigitalOcean,
+			APIKey: "some-key",
+		},
+		NetworkInterface{
+			ID: ID("eth0-from-API"),
+			IP: net.ParseIP("192.100.10.1"),
+		},
+		NetworkInterface{
+			ID: ID("eth1-from-API"),
+			IP: net.ParseIP("192.100.10.2"),
+		},
+	)
+
+	// Add new node
+	asg.AddNode(node)
+
 	return nil
 }
 
@@ -62,31 +82,29 @@ func (lc *Terminate) Execute(asg *AutoScalingGroup) error {
 
 func (lc *Relaunch) Execute(asg *AutoScalingGroup) error {
 
-	// API call
-
-	// retry here
+	// API calls here
 
 	node := NewNode()
-
 	node.Setup(
-		ID("new-node"),
+		ID("new-node-instance-id-from-API"),
 		Provider{
 			ID:     DigitalOcean,
 			APIKey: "some-key",
 		},
 		NetworkInterface{
-			ID: ID("eth0"),
+			ID: ID("eth0-from-API"),
 			IP: net.ParseIP("192.100.10.1"),
 		},
 		NetworkInterface{
-			ID: ID("eth0"),
+			ID: ID("eth1-from-API"),
 			IP: net.ParseIP("192.100.10.2"),
 		},
 	)
 
+	// Add new node
 	asg.AddNode(node)
 
-	// only when new is added, remove old
+	// oOnly when new is added, remove old
 	asg.RemoveNode(lc.NodeID)
 
 	return nil
