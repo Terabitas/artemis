@@ -1,6 +1,12 @@
 package domain
 
-import "github.com/juju/errors"
+import (
+	"sort"
+
+	"strings"
+
+	"github.com/juju/errors"
+)
 
 type (
 	// AutoScalingGroup ...
@@ -52,6 +58,28 @@ func (asg *AutoScalingGroup) AddMetrics(node ID, metrics MetricSeries) error {
 	return nil
 }
 
+// RemoveNode ...
+func (asg *AutoScalingGroup) RemoveNode(node ID) error {
+
+	if _, ok := asg.Nodes[node]; !ok {
+		errors.Errorf("Node by ID %s was not found", node)
+	}
+
+	delete(asg.Nodes, node)
+	return nil
+}
+
+// AddNode ...
+func (asg *AutoScalingGroup) AddNode(node *Node) error {
+
+	if _, ok := asg.Nodes[node.ID]; !ok {
+		errors.Errorf("Node with ID %s already exists", node.ID)
+	}
+
+	asg.Nodes[node.ID] = node
+	return nil
+}
+
 // Evaluate goes through the policies and generates commands that needs
 // to be executed
 func (asg *AutoScalingGroup) Evaluate() error {
@@ -62,6 +90,30 @@ func (asg *AutoScalingGroup) Evaluate() error {
 		if err != nil {
 			return errors.Trace(err)
 		}
+	}
+
+	var keys []int
+	for k := range asg.Commands {
+		keys = append(keys, int(k))
+	}
+	sort.Ints(keys)
+
+	errs := []string{}
+	for _, k := range keys {
+		// If case of error we add it to slice of errors
+		// and we do move on
+		// Commands are atomic and if one fails it should not influence others
+		err := asg.Commands[Order(k)].Execute(asg)
+
+		// how to deal with this ?
+		// we just return what has failed
+		if err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Errorf("Execution finished with these errors - %s", strings.Join(errs, ":"))
 	}
 
 	return nil
