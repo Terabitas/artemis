@@ -5,6 +5,10 @@ import (
 
 	"strings"
 
+	"time"
+
+	"fmt"
+
 	"github.com/juju/errors"
 )
 
@@ -16,7 +20,12 @@ type (
 		Nodes    NodeSet
 		Policies PolicySet
 		Commands CommandSet
+
+		stop bool
 	}
+
+	// AutoScalingGroupSet type
+	AutoScalingGroupSet map[ID]*AutoScalingGroup
 )
 
 // NewAutoScalingGroup constructor
@@ -25,6 +34,16 @@ func NewAutoScalingGroup(id ID) *AutoScalingGroup {
 		ID:    id,
 		State: ASGStateNew,
 	}
+}
+
+// NewAutoScalingGroupSet constructor
+func NewAutoScalingGroupSet(asgs ...*AutoScalingGroup) AutoScalingGroupSet {
+	asgsg := AutoScalingGroupSet{}
+	for _, a := range asgs {
+		asgsg[a.ID] = a
+	}
+
+	return asgsg
 }
 
 // Setup ...
@@ -148,6 +167,34 @@ func (asg *AutoScalingGroup) Execute() error {
 	}
 
 	asg.State = ASGStateActive
+	return nil
+}
+
+// Run ASG and start monitoring nodes
+func (asg *AutoScalingGroup) Run() error {
+	for {
+		// Stop
+		if asg.stop {
+			return nil
+		}
+
+		err := asg.Evaluate()
+		if err != nil {
+			return err
+		}
+		err = asg.Execute()
+
+		if err != nil {
+			return err
+		}
+		time.Sleep(time.Second * 5)
+		fmt.Printf("[%s] OK \n", asg.ID)
+	}
+}
+
+// Stop ASG
+func (asg *AutoScalingGroup) Stop() error {
+	asg.stop = true
 	return nil
 }
 
