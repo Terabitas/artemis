@@ -122,6 +122,7 @@ func (dsp *DesiredHealthyNodeAmountPerProviderPolicy) Evaluate(asg *AutoScalingG
 					NodeID: nodeID,
 				}
 
+				delete(dsp.ConsecutiveChecksNum, nodeID)
 				handled++
 			}
 		}

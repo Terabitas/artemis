@@ -33,7 +33,11 @@ type (
 
 	Provider struct {
 		ID     string
+		Region string
+		Size   string
 		APIKey string
+		Image  string
+		SSHKey string
 	}
 
 	State int
@@ -47,6 +51,8 @@ type (
 		ID ID
 		IP net.IP
 	}
+
+	NIFaces []NetworkInterface
 )
 
 func NewCommandSet(cmd ...Command) CommandSet {

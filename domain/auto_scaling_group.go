@@ -94,6 +94,7 @@ func (asg *AutoScalingGroup) RemoveNode(node ID) error {
 		errors.Errorf("Node by ID %s was not found", node)
 	}
 
+	fmt.Printf("Remove node [%s] \n", node)
 	delete(asg.Nodes, node)
 	return nil
 }
@@ -108,6 +109,7 @@ func (asg *AutoScalingGroup) AddNode(node *Node) error {
 		errors.Errorf("Node with ID %s already exists", node.ID)
 	}
 
+	fmt.Printf("Add node [%s] \n", node.ID)
 	asg.Nodes[node.ID] = node
 	return nil
 }
@@ -122,6 +124,8 @@ func (asg *AutoScalingGroup) Evaluate() error {
 	if asg.State == ASGStateNew {
 		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
 	}
+
+	fmt.Printf("Nodes: %d \n", len(asg.Nodes))
 
 	for _, policy := range asg.Policies {
 		err := policy.Evaluate(asg)
@@ -139,8 +143,10 @@ func (asg *AutoScalingGroup) Execute() error {
 		return errors.Errorf("ASG is in ASGStateNew state, use Setup() first!")
 	}
 
+	fmt.Printf("Commands: %d \n", len(asg.Commands))
 	asg.State = ASGStateExecuting
 	var keys []int
+	keys = []int{}
 	for k := range asg.Commands {
 		keys = append(keys, int(k))
 	}
@@ -148,6 +154,7 @@ func (asg *AutoScalingGroup) Execute() error {
 
 	errs := []string{}
 	for _, k := range keys {
+		fmt.Printf("Command: %+v \n", asg.Commands[Order(k)])
 		// If case of error we add it to slice of errors
 		// and we do move on
 		// Commands are atomic and if one fails it should not influence others

@@ -7,13 +7,10 @@ verbosity=9
 # Server ip
 ip=
 
-endpointhost=http://localhost
+endpointhost=http://188.166.133.162
 
 # Server port to listen on
-port=8080
-
-# Path to node config files JSON
-nodes=./
+port=80
 
 ##################################
 #           CORS config          #

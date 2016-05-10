@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"math"
 	"time"
 )
@@ -91,6 +92,10 @@ func (n *Node) Remove() error {
 
 // AddMetrics ...
 func (n *Node) AddMetrics(metrics MetricSeries) error {
+	if n.Metrics == nil {
+		n.Metrics = NewMetricSeries()
+	}
+
 	n.clearMetrics()
 	for t, m := range metrics {
 		n.Metrics[t] = m
@@ -104,9 +109,11 @@ func (n *Node) CalculateMetricValue(metricType MetricType, from, to time.Time) f
 	rez := 0.0
 	value := 0.0
 	dataPoints := 0
+
 	for t, m := range n.Metrics {
 		if isRequiredMetric(m, metricType) {
 			if t.After(from) && t.Before(to) {
+				fmt.Printf("Metric:[%s] [%v] [%v]<[%v]<[%v]\n", n.ID, m.GetValue(), from, m.GetTimestamp(), to)
 				value = value + m.GetValue()
 				dataPoints = dataPoints + 1
 			}
@@ -116,7 +123,7 @@ func (n *Node) CalculateMetricValue(metricType MetricType, from, to time.Time) f
 	if value > 0 {
 		rez = value / float64(dataPoints)
 	}
-
+	fmt.Printf("Rez:[%s] [%v]\n", n.ID, rez)
 	return round(rez, .5, 2)
 }
 

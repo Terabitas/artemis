@@ -1,8 +1,9 @@
 package middleware
 
 import (
-	"github.com/zenazn/goji/web"
 	"net/http"
+
+	"github.com/zenazn/goji/web"
 )
 
 // URLQueryKey is the context key for the URL Query

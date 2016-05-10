@@ -2,3 +2,5 @@
 .idea
 artemis.conf
 bin/
+release/*
+resources/*

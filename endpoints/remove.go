@@ -33,10 +33,6 @@ func RemoveASGHandler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	asg := domain.NewAutoScalingGroup(domain.ID(req.ID))
-
-	asg.Setup(domain.NewNodeSet(), domain.NewPolicySet())
-
 	// Remove ASG routine
 	ASGSupervisor.Remove(domain.ID(req.ID))
 
