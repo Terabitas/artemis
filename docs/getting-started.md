@@ -29,7 +29,7 @@ This is cli client that communicates over API with `artemis` service. Download i
 
 # How to create ASG ?
 
-With this one liner you can create `ASG` which will make sure you always have at least on droplet up and running:
+With this one liner you can create `ASG` which will make sure you always have at least one droplet up and running:
 
 ```
 artemisctl asg create \ 
