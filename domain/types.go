@@ -3,6 +3,7 @@ package domain
 import "net"
 
 const (
+	Local        = "local"
 	DigitalOcean = "digitalocean"
 	Linoid       = "linoid"
 	Vultr        = "vultr"

@@ -1,0 +1,18 @@
+version: '2'
+
+services:
+    artemisService:
+        image: nildev/artemis
+        ports:
+            - "80:1080"
+        environment:
+            - ARTEMISD_VERBOSITY=2
+        networks:
+            default:
+                aliases:
+                    - artemis
+
+networks:
+    default:
+        external:
+            name: nildevnet
